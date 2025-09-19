@@ -1,0 +1,15 @@
+1. Softmax
+def softmax(model_out):
+    # subtract max for numerical stability
+    exp_model_out = np.exp(model_out - np.max(model_out, axis=0, keepdims=True))
+    sum_exp_model_out = np.sum(exp_model_out, axis=0, keepdims=True)
+    softmax_model_out = exp_model_out / sum_exp_model_out
+    return softmax_model_out
+2. Compute Likelihood
+def compute_likelihood(y_train, lambda_param):
+    likelihood = np.prod(categorical_distribution(y_train, lambda_param))
+    return likelihood
+3. Compute Negative Log Likelihood
+def compute_negative_log_likelihood(y_train, lambda_param):
+    nll = -np.sum(np.log(categorical_distribution(y_train, lambda_param)))
+    return nll
