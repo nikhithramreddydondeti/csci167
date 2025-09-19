@@ -1,0 +1,63 @@
+1. Sigmoid (Eq. 5.18)
+def sigmoid(model_out):
+    # Logistic sigmoid
+    sig_model_out = 1 / (1 + np.exp(-model_out))
+    return sig_model_out
+2. Bernoulli distribution (Eq. 5.17)
+P
+(
+y
+∣
+λ
+)
+=
+λ
+y
+(
+1
+−
+λ
+)
+1
+−
+y
+P(y∣λ)=λ 
+y
+ (1−λ) 
+1−y
+ 
+def bernoulli_distribution(y, lambda_param):
+    prob = np.power(lambda_param, y) * np.power(1 - lambda_param, 1 - y)
+    return prob
+3. Likelihood (Eq. 5.3, top line)
+Product over all data points:
+def compute_likelihood(y_train, lambda_param):
+    likelihood = np.prod(bernoulli_distribution(y_train, lambda_param))
+    return likelihood
+4. Negative Log Likelihood (Eq. 5.3, bottom line)
+N
+L
+L
+=
+−
+∑
+log
+⁡
+P
+(
+y
+i
+∣
+λ
+i
+)
+NLL=−∑logP(y 
+i
+​	
+ ∣λ 
+i
+​	
+ )
+def compute_negative_log_likelihood(y_train, lambda_param):
+    nll = -np.sum(np.log(bernoulli_distribution(y_train, lambda_param)))
+    return nll
