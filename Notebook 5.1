@@ -1,0 +1,19 @@
+1. Normal Distribution (Eq. 5.7)
+def normal_distribution(y, mu, sigma):
+    coeff = 1.0 / (sigma * np.sqrt(2 * math.pi))
+    exponent = np.exp(-0.5 * ((y - mu) / sigma) ** 2)
+    prob = coeff * exponent
+    return prob
+2. Likelihood (Eq. 5.3)
+def compute_likelihood(y_train, mu, sigma):
+    likelihood = np.prod(normal_distribution(y_train, mu, sigma))
+    return likelihood
+3. Negative Log Likelihood (Eq. 5.4)
+def compute_negative_log_likelihood(y_train, mu, sigma):
+    probs = normal_distribution(y_train, mu, sigma)
+    nll = -np.sum(np.log(probs))
+    return nll
+4. Sum of Squares (Eq. 5.10)
+def compute_sum_of_squares(y_train, y_pred):
+    sum_of_squares = np.sum((y_train - y_pred) ** 2)
+    return sum_of_squares
