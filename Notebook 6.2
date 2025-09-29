@@ -1,0 +1,36 @@
+# ---------- LOSS FUNCTION ----------
+def compute_loss(data_x, data_y, model, phi):
+    # Predictions
+    pred_y = model(phi, data_x)
+    # Squared error
+    loss = np.sum((pred_y - data_y) ** 2)
+    return loss
+
+
+# ---------- GRADIENT ----------
+def compute_gradient(data_x, data_y, phi):
+    # Predictions
+    pred_y = phi[0] + phi[1] * data_x
+    error = pred_y - data_y
+
+    # Derivatives of SSE wrt phi0, phi1
+    dl_dphi0 = 2 * np.sum(error)
+    dl_dphi1 = 2 * np.sum(error * data_x)
+
+    return np.array([[dl_dphi0], [dl_dphi1]])
+
+
+# ---------- GRADIENT DESCENT STEP ----------
+def gradient_descent_step(phi, data, model):
+    # 1. Compute gradient
+    gradient = compute_gradient(data[0, :], data[1, :], phi)
+
+    # 2. Normalize search direction (negative gradient)
+    search_direction = -gradient / np.linalg.norm(gradient)
+
+    # 3. Find best step size alpha using line search
+    alpha = line_search(data, model, phi, search_direction)
+
+    # 4. Update parameters
+    phi_new = phi + alpha * search_direction
+    return phi_new
