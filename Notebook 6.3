@@ -1,0 +1,142 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -----------------------------
+# Data
+# -----------------------------
+data = np.array([[-1.920e+00,-1.422e+01,1.490e+00,-1.940e+00,-2.389e+00,-5.090e+00,
+                 -8.861e+00,3.578e+00,-6.010e+00,-6.995e+00,3.634e+00,8.743e-01,
+                 -1.096e+01,4.073e-01,-9.467e+00,8.560e+00,1.062e+01,-1.729e-01,
+                  1.040e+01,-1.261e+01,1.574e-01,-1.304e+01,-2.156e+00,-1.210e+01,
+                 -1.119e+01,2.902e+00,-8.220e+00,-1.179e+01,-8.391e+00,-4.505e+00],
+                  [-1.051e+00,-2.482e-02,8.896e-01,-4.943e-01,-9.371e-01,4.306e-01,
+                  9.577e-03,-7.944e-02 ,1.624e-01,-2.682e-01,-3.129e-01,8.303e-01,
+                  -2.365e-02,5.098e-01,-2.777e-01,3.367e-01,1.927e-01,-2.222e-01,
+                  6.352e-02,6.888e-03,3.224e-02,1.091e-02,-5.706e-01,-5.258e-02,
+                  -3.666e-02,1.709e-01,-4.805e-02,2.008e-01,-1.904e-01,5.952e-01]])
+
+# -----------------------------
+# Model
+# -----------------------------
+def model(phi, x):
+    phi = np.array(phi).reshape(2,)
+    sin_component = np.sin(phi[0] + 0.06 * phi[1] * x)
+    gauss_component = np.exp(-(phi[0] + 0.06 * phi[1] * x)**2 / 32)
+    return sin_component * gauss_component
+
+def draw_model(data, model, phi, title=None):
+    x_model = np.arange(-15,15,0.1)
+    y_model = model(phi, x_model)
+    plt.plot(data[0,:],data[1,:],'bo')
+    plt.plot(x_model,y_model,'m-')
+    plt.xlim([-15,15]); plt.ylim([-1,1])
+    plt.xlabel('x'); plt.ylabel('y')
+    if title:
+        plt.title(title)
+    plt.show()
+
+# -----------------------------
+# Loss function
+# -----------------------------
+def compute_loss(data_x, data_y, model, phi):
+    phi = np.array(phi).reshape(2,)
+    preds = model(phi, data_x)
+    return float(np.sum((preds - data_y)**2))
+
+# -----------------------------
+# Gradients
+# -----------------------------
+def gabor_deriv_phi0(data_x,data_y,phi0, phi1):
+    x = 0.06 * phi1 * data_x + phi0
+    y = data_y
+    cos_component = np.cos(x)
+    sin_component = np.sin(x)
+    gauss_component = np.exp(-0.5 * x**2 / 16)
+    deriv = cos_component * gauss_component - sin_component * gauss_component * x / 16
+    deriv = 2* deriv * (sin_component * gauss_component - y)
+    return np.sum(deriv)
+
+def gabor_deriv_phi1(data_x, data_y,phi0, phi1):
+    x = 0.06 * phi1 * data_x + phi0
+    y = data_y
+    cos_component = np.cos(x)
+    sin_component = np.sin(x)
+    gauss_component = np.exp(-0.5 * x**2 / 16)
+    deriv = 0.06 * data_x * cos_component * gauss_component - 0.06 * data_x*sin_component * gauss_component * x / 16
+    deriv = 2*deriv * (sin_component * gauss_component - y)
+    return np.sum(deriv)
+
+def compute_gradient(data_x, data_y, phi):
+    phi = np.array(phi).reshape(2,)
+    dl_dphi0 = gabor_deriv_phi0(data_x, data_y, phi[0],phi[1])
+    dl_dphi1 = gabor_deriv_phi1(data_x, data_y, phi[0],phi[1])
+    return np.array([[dl_dphi0],[dl_dphi1]])
+
+# -----------------------------
+# Gradient Descent helpers
+# -----------------------------
+def loss_function_1D(dist_prop, data, model, phi_start, gradient):
+    return compute_loss(data[0,:], data[1,:], model, phi_start+ gradient * dist_prop)
+
+def line_search(data, model, phi, gradient, thresh=.00001, max_dist = 0.1, max_iter = 15):
+    a = 0; b = 0.33 * max_dist; c = 0.66 * max_dist; d = 1.0 * max_dist
+    while np.abs(b-c) > thresh and max_iter > 0:
+        max_iter -= 1
+        lossa = loss_function_1D(a, data, model, phi,gradient)
+        lossb = loss_function_1D(b, data, model, phi,gradient)
+        lossc = loss_function_1D(c, data, model, phi,gradient)
+        lossd = loss_function_1D(d, data, model, phi,gradient)
+        if np.argmin((lossa,lossb,lossc,lossd))==0:
+            b = a+ (b-a)/2; c = a+ (c-a)/2; d = a+ (d-a)/2
+            continue
+        if lossb < lossc:
+            d = c; b = a+ (d-a)/3; c = a+ 2*(d-a)/3; continue
+        a = b; b = a+ (d-a)/3; c = a+ 2*(d-a)/3
+    return (b+c)/2.0
+
+def gradient_descent_step(phi, data, model):
+    gradient = compute_gradient(data[0,:],data[1,:], phi)
+    alpha = line_search(data, model, phi, gradient*-1, max_dist = 2.0)
+    return phi - alpha * gradient
+
+def gradient_descent_step_fixed_learning_rate(phi, data, alpha):
+    gradient = compute_gradient(data[0,:], data[1,:], phi)
+    return phi - alpha * gradient
+
+def stochastic_gradient_descent_step(phi, data, alpha, batch_size):
+    n = data.shape[1]
+    idx = np.random.permutation(n)[:batch_size]
+    data_x_batch = data[0, idx]
+    data_y_batch = data[1, idx]
+    grad = compute_gradient(data_x_batch, data_y_batch, phi)
+    return phi - alpha * grad
+
+# -----------------------------
+# Experiments
+# -----------------------------
+if __name__ == "__main__":
+    # Test loss
+    test_loss = compute_loss(data[0,:], data[1,:], model, np.array([[0.6],[-0.2]]))
+    print("Test loss:", test_loss)
+
+    # Line search GD
+    phi = np.array([[-1.5],[8.5]])
+    for step in range(10):
+        phi = gradient_descent_step(phi, data, model)
+        loss = compute_loss(data[0,:], data[1,:], model, phi)
+        draw_model(data, model, phi, f"Line search step {step+1}, loss={loss:.4f}")
+
+    # Fixed LR GD
+    phi = np.array([[-1.5],[8.5]])
+    for step in range(10):
+        phi = gradient_descent_step_fixed_learning_rate(phi, data, alpha=0.2)
+        loss = compute_loss(data[0,:], data[1,:], model, phi)
+        draw_model(data, model, phi, f"Fixed LR step {step+1}, loss={loss:.4f}")
+
+    # SGD
+    np.random.seed(1)
+    phi = np.array([[3.5],[6.5]])
+    for step in range(10):
+        phi = stochastic_gradient_descent_step(phi, data, alpha=0.8, batch_size=5)
+        loss = compute_loss(data[0,:], data[1,:], model, phi)
+        draw_model(data, model, phi, f"SGD step {step+1}, loss={loss:.4f}")
