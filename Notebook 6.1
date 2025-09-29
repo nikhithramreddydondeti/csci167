@@ -1,0 +1,81 @@
+# import libraries
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define a 1D loss function
+def loss_function(phi):
+    return 1 - 0.5 * np.exp(-(phi - 0.65) ** 2 / 0.1) - 0.45 * np.exp(-(phi - 0.35) ** 2 / 0.02)
+
+# Function to plot the curve and points
+def draw_function(loss_function, a=None, b=None, c=None, d=None):
+    phi_plot = np.arange(0, 1, 0.01)
+    fig, ax = plt.subplots()
+    ax.plot(phi_plot, loss_function(phi_plot), 'r-')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel(r'$\phi$')
+    ax.set_ylabel(r'$L[\phi]$')
+    if a is not None and b is not None and c is not None and d is not None:
+        plt.axvspan(a, d, facecolor='k', alpha=0.2)
+        ax.plot([a, a], [0, 1], 'b-')
+        ax.plot([b, b], [0, 1], 'b-')
+        ax.plot([c, c], [0, 1], 'b-')
+        ax.plot([d, d], [0, 1], 'b-')
+    plt.show()
+
+# Draw the function initially
+draw_function(loss_function)
+
+# Line search algorithm
+def line_search(loss_function, thresh=1e-4, max_iter=10, draw_flag=False):
+
+    # Initialize four points
+    a = 0
+    b = 0.33
+    c = 0.66
+    d = 1.0
+    n_iter = 0
+
+    # Loop until convergence
+    while np.abs(b - c) > thresh and n_iter < max_iter:
+        n_iter += 1
+
+        # Evaluate loss
+        lossa = loss_function(a)
+        lossb = loss_function(b)
+        lossc = loss_function(c)
+        lossd = loss_function(d)
+
+        if draw_flag:
+            draw_function(loss_function, a, b, c, d)
+
+        print(f"Iter {n_iter}, a={a:.3f}, b={b:.3f}, c={c:.3f}, d={d:.3f}")
+
+        # Rule 1: if a is lower than all, shrink interval towards a
+        if lossa < lossb and lossa < lossc and lossa < lossd:
+            b = a + (b - a) / 2
+            c = a + (c - a) / 2
+            d = a + (d - a) / 2
+            continue
+
+        # Rule 2: if b is better than c, move d and recompute
+        if lossb < lossc:
+            d = c
+            b = a + (d - a) / 3
+            c = a + 2 * (d - a) / 3
+            continue
+
+        # Rule 3: if c is better than b, move a and recompute
+        if lossc < lossb:
+            a = b
+            b = a + (d - a) / 3
+            c = a + 2 * (d - a) / 3
+            continue
+
+    # Final solution = midpoint of b and c
+    soln = (b + c) / 2
+    return soln
+
+# Run search
+soln = line_search(loss_function, draw_flag=True)
+print(f"Soln = {soln:.3f}, loss = {loss_function(soln):.3f}")
