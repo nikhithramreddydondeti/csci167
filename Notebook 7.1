@@ -1,0 +1,84 @@
+# import library
+import numpy as np
+
+# Define original function and loss
+def fn(x, beta0, beta1, beta2, beta3, omega0, omega1, omega2, omega3):
+    return beta3 + omega3 * np.cos(beta2 + omega2 * np.exp(beta1 + omega1 * np.sin(beta0 + omega0 * x)))
+
+def loss(x, y, beta0, beta1, beta2, beta3, omega0, omega1, omega2, omega3):
+    diff = fn(x, beta0, beta1, beta2, beta3, omega0, omega1, omega2, omega3) - y
+    return diff * diff
+
+# Parameters and sample data
+beta0 = 1.0; beta1 = 2.0; beta2 = -3.0; beta3 = 0.4
+omega0 = 0.1; omega1 = -0.4; omega2 = 2.0; omega3 = 3.0
+x = 2.3; y = 2.0
+
+# Original loss
+l_i_func = loss(x,y,beta0,beta1,beta2,beta3,omega0,omega1,omega2,omega3)
+print('l_i=%3.3f'%l_i_func)
+
+# === Step 1: Forward Pass ===
+f0 = beta0 + omega0 * x
+h1 = np.sin(f0)
+f1 = beta1 + omega1 * h1
+h2 = np.exp(f1)
+f2 = beta2 + omega2 * h2
+h3 = np.cos(f2)
+f3 = beta3 + omega3 * h3
+l_i = (f3 - y)**2
+
+# Verify forward pass
+print(f"f0: true value = 1.230, your value = {f0:.3f}")
+print(f"h1: true value = 0.942, your value = {h1:.3f}")
+print(f"f1: true value = 1.623, your value = {f1:.3f}")
+print(f"h2: true value = 5.068, your value = {h2:.3f}")
+print(f"f2: true value = 7.137, your value = {f2:.3f}")
+print(f"h3: true value = 0.657, your value = {h3:.3f}")
+print(f"f3: true value = 2.372, your value = {f3:.3f}")
+print(f"l_i original = {l_i_func:.3f}, l_i from forward pass = {l_i:.3f}")
+
+# === Step 2: Backward Pass ===
+# Start from top
+dldf3 = 2 * (f3 - y)
+dldh3 = omega3 * dldf3
+dldf2 = -np.sin(f2) * dldh3
+dldh2 = omega2 * dldf2
+dldf1 = np.exp(f1) * dldh2
+dldh1 = omega1 * dldf1
+dldf0 = np.cos(f0) * dldh1
+
+# Verify intermediate derivatives
+print(f"dldf3: true value = 0.745, your value = {dldf3:.3f}")
+print(f"dldh3: true value = 2.234, your value = {dldh3:.3f}")
+print(f"dldf2: true value = -1.683, your value = {dldf2:.3f}")
+print(f"dldh2: true value = -3.366, your value = {dldh2:.3f}")
+print(f"dldf1: true value = -17.060, your value = {dldf1:.3f}")
+print(f"dldh1: true value = 6.824, your value = {dldh1:.3f}")
+print(f"dldf0: true value = 2.281, your value = {dldf0:.3f}")
+
+# === Step 3: Derivatives wrt betas and omegas ===
+dldbeta3 = dldf3
+dldomega3 = h3 * dldf3
+dldbeta2 = dldf2
+dldomega2 = h2 * dldf2
+dldbeta1 = dldf1
+dldomega1 = h1 * dldf1
+dldbeta0 = dldf0
+dldomega0 = x * dldf0
+
+# Verify with given "true" values
+dldomega0_func = -2 *(beta3 +omega3 * np.cos(beta2 + omega2 * np.exp(beta1+omega1 * np.sin(beta0+omega0 * x)))-y) * \
+              omega1 * omega2 * omega3 * x * np.cos(beta0 + omega0 * x) * np.exp(beta1 +omega1 * np.sin(beta0 + omega0 * x)) *\
+              np.sin(beta2 + omega2 * np.exp(beta1+ omega1* np.sin(beta0+omega0 * x)))
+
+dldomega0_fd = (loss(x,y,beta0,beta1,beta2,beta3,omega0+0.00001,omega1,omega2,omega3)-loss(x,y,beta0,beta1,beta2,beta3,omega0,omega1,omega2,omega3))/0.00001
+
+print(f"dldbeta3: Your value = {dldbeta3:.3f}, True value = 0.745")
+print(f"dldomega3: Your value = {dldomega3:.3f}, True value = 0.489")
+print(f"dldbeta2: Your value = {dldbeta2:.3f}, True value = -1.683")
+print(f"dldomega2: Your value = {dldomega2:.3f}, True value = -8.530")
+print(f"dldbeta1: Your value = {dldbeta1:.3f}, True value = -17.060")
+print(f"dldomega1: Your value = {dldomega1:.3f}, True value = -16.079")
+print(f"dldbeta0: Your value = {dldbeta0:.3f}, True value = 2.281")
+print(f"dldomega0: Your value = {dldomega0:.3f}, Function value = {dldomega0_func:.3f}, Finite difference value = {dldomega0_fd:.3f}")
