@@ -1,0 +1,162 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# **Notebook 6.4: Momentum (Solved Version)**"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "from matplotlib.colors import ListedColormap"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Training data\n",
+        "data = np.array([[-1.920e+00,-1.422e+01,1.490e+00,-1.940e+00,-2.389e+00,-5.090e+00,\n",
+        "                 -8.861e+00,3.578e+00,-6.010e+00,-6.995e+00,3.634e+00,8.743e-01,\n",
+        "                 -1.096e+01,4.073e-01,-9.467e+00,8.560e+00,1.062e+01,-1.729e-01,\n",
+        "                  1.040e+01,-1.261e+01,1.574e-01,-1.304e+01,-2.156e+00,-1.210e+01,\n",
+        "                 -1.119e+01,2.902e+00,-8.220e+00,-1.179e+01,-8.391e+00,-4.505e+00],\n",
+        "                  [-1.051e+00,-2.482e-02,8.896e-01,-4.943e-01,-9.371e-01,4.306e-01,\n",
+        "                  9.577e-03,-7.944e-02 ,1.624e-01,-2.682e-01,-3.129e-01,8.303e-01,\n",
+        "                  -2.365e-02,5.098e-01,-2.777e-01,3.367e-01,1.927e-01,-2.222e-01,\n",
+        "                  6.352e-02,6.888e-03,3.224e-02,1.091e-02,-5.706e-01,-5.258e-02,\n",
+        "                  -3.666e-02,1.709e-01,-4.805e-02,2.008e-01,-1.904e-01,5.952e-01]])"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def model(phi,x):\n",
+        "  sin_component = np.sin(phi[0] + 0.06 * phi[1] * x)\n",
+        "  gauss_component = np.exp(-(phi[0] + 0.06 * phi[1] * x)**2 / 32)\n",
+        "  return sin_component * gauss_component"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def draw_model(data,model,phi,title=None):\n",
+        "  x_model = np.arange(-15,15,0.1)\n",
+        "  y_model = model(phi,x_model)\n",
+        "  plt.figure()\n",
+        "  plt.plot(data[0,:],data[1,:],'bo')\n",
+        "  plt.plot(x_model,y_model,'m-')\n",
+        "  plt.xlim([-15,15]);plt.ylim([-1,1])\n",
+        "  plt.xlabel('x'); plt.ylabel('y')\n",
+        "  if title is not None:\n",
+        "    plt.title(title)\n",
+        "  plt.show()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def compute_loss(data_x, data_y, model, phi):\n",
+        "  pred_y = model(phi, data_x)\n",
+        "  return np.sum((pred_y - data_y)**2)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def gabor_deriv_phi0(data_x,data_y,phi0, phi1):\n",
+        "    x = 0.06 * phi1 * data_x + phi0\n",
+        "    y = data_y\n",
+        "    cos_component = np.cos(x)\n",
+        "    sin_component = np.sin(x)\n",
+        "    gauss_component = np.exp(-0.5 * x**2 / 16)\n",
+        "    deriv = cos_component * gauss_component - sin_component * gauss_component * x / 16\n",
+        "    deriv = 2 * deriv * (sin_component * gauss_component - y)\n",
+        "    return np.sum(deriv)\n",
+        "\n",
+        "def gabor_deriv_phi1(data_x, data_y,phi0, phi1):\n",
+        "    x = 0.06 * phi1 * data_x + phi0\n",
+        "    y = data_y\n",
+        "    cos_component = np.cos(x)\n",
+        "    sin_component = np.sin(x)\n",
+        "    gauss_component = np.exp(-0.5 * x**2 / 16)\n",
+        "    deriv = 0.06 * data_x * cos_component * gauss_component - 0.06 * data_x * sin_component * gauss_component * x / 16\n",
+        "    deriv = 2 * deriv * (sin_component * gauss_component - y)\n",
+        "    return np.sum(deriv)\n",
+        "\n",
+        "def compute_gradient(data_x, data_y, phi):\n",
+        "    dl_dphi0 = gabor_deriv_phi0(data_x, data_y, phi[0], phi[1])\n",
+        "    dl_dphi1 = gabor_deriv_phi1(data_x, data_y, phi[0], phi[1])\n",
+        "    return np.array([[dl_dphi0],[dl_dphi1]])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": ["## Standard Momentum Solution"]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "np.random.seed(1)\n",
+        "n_steps = 81\n",
+        "batch_size = 5\n",
+        "alpha = 0.6\n",
+        "beta = 0.6\n",
+        "momentum = np.zeros([2,1])\n",
+        "phi_all = np.zeros((2,n_steps+1))\n",
+        "phi_all[0,0] = -1.5\n",
+        "phi_all[1,0] = 6.5\n",
+        "\n",
+        "for c_step in range(n_steps):\n",
+        "    batch_index = np.random.permutation(data.shape[1])[:batch_size]\n",
+        "    gradient = compute_gradient(data[0,batch_index], data[1,batch_index], phi_all[:,c_step:c_step+1])\n",
+        "    momentum = beta * momentum + gradient   # ✅ Correct Momentum Update\n",
+        "    phi_all[:,c_step+1:c_step+2] = phi_all[:,c_step:c_step+1] - alpha * momentum\n",
+        "\n",
+        "loss = compute_loss(data[0,:], data[1,:], model, phi_all[:,-1:])\n",
+        "draw_model(data,model,phi_all[:,-1], f\"Momentum Final Iteration Loss = {loss:.4f}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": ["## Nesterov Momentum Solution"]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "np.random.seed(1)\n",
+        "n_steps = 81\n",
+        "batch_size = 5\n",
+        "alpha = 0.6\n",
+        "beta = 0.6\n",
+        "momentum = np.zeros([2,1])\n",
+        "phi_all = np.zeros((2,n_steps+1))\n",
+        "phi_all[0,0] = -1.5\n",
+        "phi_all[1,0] = 6.5\n",
+        "\n",
+        "for c_step in range(n_steps):\n",
+        "    batch_index = np.random.permutation(data.shape[1])[:batch_size]\n",
+        "    lookahead_phi = phi_all[:,c_step:c_step+1] - beta * momentum\n",
+        "    gradient = compute_gradient(data[0,batch_index], data[1,batch_index], lookahead_phi)\n",
+        "    momentum = beta * momentum + gradient   # ✅ Nesterov Update\n",
+        "    phi_all[:,c_step+1:c_step+2] = phi_all[:,c_step:c_step+1] - alpha * momentum\n",
+        "\n",
+        "loss = compute_loss(data[0,:], data[1,:], model, phi_all[:,-1:])\n",
+        "draw_model(data,model,phi_all[:,-1], f\"Nesterov Final Iteration Loss = {loss:.4f}\")"
+      ]
+    }
+  ]
+}
