@@ -1,0 +1,125 @@
+# ✅ Notebook 8.1: MNIST_1D_Performance — Complete Solution
+
+# Install dataset library (only needed in Colab)
+%pip install git+https://github.com/greydanus/mnist1d
+
+# -----------------------------
+# Imports
+# -----------------------------
+import torch, torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
+from torch.optim.lr_scheduler import StepLR
+import numpy as np
+import matplotlib.pyplot as plt
+import mnist1d
+
+# -----------------------------
+# Load dataset
+# -----------------------------
+args = mnist1d.data.get_dataset_args()
+data = mnist1d.data.get_dataset(args, path='./mnist1d_data.pkl', download=False, regenerate=False)
+
+print(f"Examples in training set: {len(data['y'])}")
+print(f"Examples in test set: {len(data['y_test'])}")
+print(f"Length of each example: {data['x'].shape[-1]}")
+
+# -----------------------------
+# Define model architecture
+# -----------------------------
+D_i = 40    # input dimension
+D_k = 100   # hidden layer size
+D_o = 10    # output classes
+
+# ✅ Two hidden layers of size 100 with ReLU activation
+model = torch.nn.Sequential(
+    torch.nn.Linear(D_i, D_k),
+    torch.nn.ReLU(),
+    torch.nn.Linear(D_k, D_k),
+    torch.nn.ReLU(),
+    torch.nn.Linear(D_k, D_o)
+)
+
+# -----------------------------
+# Define He initialization
+# -----------------------------
+def weights_init(layer_in):
+    if isinstance(layer_in, nn.Linear):
+        nn.init.kaiming_normal_(layer_in.weight, nonlinearity='relu')
+        if layer_in.bias is not None:
+            nn.init.zeros_(layer_in.bias)
+
+# Apply initialization
+model.apply(weights_init)
+
+# -----------------------------
+# Training setup
+# -----------------------------
+loss_function = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
+scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+
+x_train = torch.tensor(data['x'].astype('float32'))
+y_train = torch.tensor(data['y'].astype('int64'))
+x_test  = torch.tensor(data['x_test'].astype('float32'))
+y_test  = torch.tensor(data['y_test'].astype('int64'))
+
+data_loader = DataLoader(
+    TensorDataset(x_train, y_train),
+    batch_size=100,
+    shuffle=True,
+    worker_init_fn=np.random.seed(1)
+)
+
+# -----------------------------
+# Training loop
+# -----------------------------
+n_epoch = 50
+losses_train, errors_train = np.zeros(n_epoch), np.zeros(n_epoch)
+losses_test, errors_test   = np.zeros(n_epoch), np.zeros(n_epoch)
+
+for epoch in range(n_epoch):
+    # Train one epoch
+    for x_batch, y_batch in data_loader:
+        optimizer.zero_grad()
+        pred = model(x_batch)
+        loss = loss_function(pred, y_batch)
+        loss.backward()
+        optimizer.step()
+    scheduler.step()
+
+    # Evaluate
+    with torch.no_grad():
+        pred_train = model(x_train)
+        pred_test  = model(x_test)
+        _, train_class = torch.max(pred_train.data, 1)
+        _, test_class  = torch.max(pred_test.data, 1)
+
+        losses_train[epoch] = loss_function(pred_train, y_train).item()
+        losses_test[epoch]  = loss_function(pred_test, y_test).item()
+        errors_train[epoch] = 100 - 100 * (train_class == y_train).float().mean()
+        errors_test[epoch]  = 100 - 100 * (test_class == y_test).float().mean()
+
+    print(f"Epoch {epoch:2d} | Train Loss: {losses_train[epoch]:.4f} | "
+          f"Train Err: {errors_train[epoch]:.2f}% | "
+          f"Test Loss: {losses_test[epoch]:.4f} | Test Err: {errors_test[epoch]:.2f}%")
+
+# -----------------------------
+# Plot accuracy and loss
+# -----------------------------
+plt.figure()
+plt.plot(errors_train, 'r-', label='Train Error')
+plt.plot(errors_test, 'b-', label='Test Error')
+plt.xlabel('Epoch')
+plt.ylabel('Error (%)')
+plt.title(f'Final Train Error: {errors_train[-1]:.2f}% | Test Error: {errors_test[-1]:.2f}%')
+plt.legend()
+plt.show()
+
+plt.figure()
+plt.plot(losses_train, 'r-', label='Train Loss')
+plt.plot(losses_test, 'b-', label='Test Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title(f'Final Train Loss: {losses_train[-1]:.2f} | Test Loss: {losses_test[-1]:.2f}')
+plt.legend()
+plt.show()
