@@ -1,0 +1,150 @@
+# =============================================
+
+# Install MNIST-1D if needed
+# !pip install git+https://github.com/greydanus/mnist1d
+
+# ---------------------------------------------
+# Imports + Setup
+# ---------------------------------------------
+import torch, torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+import matplotlib.pyplot as plt
+import mnist1d
+import random
+
+SEED = 0
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("Using device:", DEVICE)
+
+# ---------------------------------------------
+# Data Loading + Label Noise
+# ---------------------------------------------
+args = mnist1d.data.get_dataset_args()
+args.num_samples = 8000
+args.train_split = 0.5
+args.corr_noise_scale = 0.25
+args.iid_noise_scale = 2e-2
+
+data = mnist1d.data.get_dataset(args, './mnist1d_data.pkl', download=False, regenerate=True)
+
+# Add 15% label noise
+for i in range(len(data['y'])):
+    if random.random() < 0.15:
+        data['y'][i] = int(random.random() * 10)
+
+print("Training samples:", len(data['y']))
+print("Test samples:", len(data['y_test']))
+print("Input size:", data['x'].shape[-1])
+
+# ---------------------------------------------
+# Model Functions
+# ---------------------------------------------
+def weights_init(layer):
+    if isinstance(layer, nn.Linear):
+        nn.init.kaiming_uniform_(layer.weight)
+        layer.bias.data.zero_()
+
+def get_model(n_hidden):
+    model = nn.Sequential(
+        nn.Linear(40, n_hidden), nn.ReLU(),
+        nn.Linear(n_hidden, n_hidden), nn.ReLU(),
+        nn.Linear(n_hidden, 10)
+    )
+    model.apply(weights_init)
+    return model.to(DEVICE)
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+# ---------------------------------------------
+# Training Loop
+# ---------------------------------------------
+def fit_model(model, data, n_epoch=200, batch_size=256, lr=0.01, momentum=0.9):
+    loss_fn = nn.CrossEntropyLoss()
+    opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+
+    x_train = torch.tensor(data['x'].astype('float32')).to(DEVICE)
+    y_train = torch.tensor(data['y'].astype('long')).to(DEVICE)
+    x_test  = torch.tensor(data['x_test'].astype('float32')).to(DEVICE)
+    y_test  = torch.tensor(data['y_test'].astype('long')).to(DEVICE)
+
+    loader = DataLoader(TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
+
+    for epoch in range(1, n_epoch+1):
+        for xb, yb in loader:
+            opt.zero_grad()
+            pred = model(xb)
+            loss = loss_fn(pred, yb)
+            loss.backward()
+            opt.step()
+
+    model.eval()
+    with torch.no_grad():
+        train_err = 100 - 100 * (model(x_train).argmax(1) == y_train).float().mean().item()
+        test_err  = 100 - 100 * (model(x_test).argmax(1) == y_test).float().mean().item()
+    return train_err, test_err
+
+# ---------------------------------------------
+# Sweep Config
+# ---------------------------------------------
+FAST = True  # ✅ Set False for full long figure
+
+if FAST:
+    hidden_variables = np.array([2,4,8,12,18,26,35,40,50,65,80,100,140,200,280])
+    n_epoch = 160
+else:
+    hidden_variables = np.array([2,4,6,8,10,14,18,22,26,30,35,40,45,50,55,60,70,80,90,100,140,160,200,250,300,400])
+    n_epoch = 350
+
+errors_train_all = []
+errors_test_all = []
+total_weights_all = []
+
+# ---------------------------------------------
+# Training Sweep
+# ---------------------------------------------
+for H in hidden_variables:
+    print(f"\nTraining width H = {H}")
+    model = get_model(int(H))
+    total_weights_all.append(count_parameters(model))
+    tr, te = fit_model(model, data, n_epoch=n_epoch)
+    errors_train_all.append(tr)
+    errors_test_all.append(te)
+
+# ---------------------------------------------
+# Plot Double Descent Curve
+# ---------------------------------------------
+total_weights_all = np.array(total_weights_all)
+errors_train_all = np.array(errors_train_all)
+errors_test_all = np.array(errors_test_all)
+
+num_train = len(data['y'])
+idx_interp = np.argmin(np.abs(total_weights_all - num_train))
+H_interp = hidden_variables[idx_interp]
+
+plt.figure(figsize=(8,6))
+plt.plot(hidden_variables, errors_train_all, 'o-', label="Train error")
+plt.plot(hidden_variables, errors_test_all, 'o-', label="Test error")
+plt.axvline(x=H_interp, color='g', linestyle='--', label="Interpolation threshold")
+plt.xlabel("Hidden width")
+plt.ylabel("Error (%)")
+plt.title("Double Descent: MNIST-1D (2-Layer MLP)")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+print("\n--- RESULTS ---")
+print("Interpolation threshold width H:", H_interp)
+print("Parameters ~:", total_weights_all[idx_interp])
+print("Training examples:", num_train)
+
+# ---------------------------------------------
+# Summary Output
+# ---------------------------------------------
+
