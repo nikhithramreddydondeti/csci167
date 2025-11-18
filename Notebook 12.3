@@ -1,0 +1,229 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    },
+    "kernelspec": { "name": "python3", "display_name": "Python 3" },
+    "language_info": { "name": "python" }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/udlbook/udlbook/blob/main/Notebooks/Chap12/12_3_Tokenization.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# **Notebook 12.3: Tokenization**\n",
+        "This notebook builds set of tokens from a text string as in figure 12.8 of the book.\n",
+        "All TODOs have been completed."
+      ]
+    },
+    { "cell_type": "code", "source": ["import re, collections"], "metadata": {}, "execution_count": null, "outputs": [] },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "text = \"a sailor went to sea sea sea \" + \\\n",
+        "       \"to see what he could see see see \" + \\\n",
+        "       \"but all that he could see see see \" + \\\n",
+        "       \"was the bottom of the deep blue sea sea sea\""
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Tokenize the input sentence. Initialize vocabulary: each word → characters + </w>."
+      ]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def initialize_vocabulary(text):\n",
+        "    vocab = collections.defaultdict(int)\n",
+        "    words = text.strip().split()\n",
+        "    for word in words:\n",
+        "        vocab[' '.join(list(word)) + ' </w>'] += 1\n",
+        "    return vocab"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "vocab = initialize_vocabulary(text)\n",
+        "print('Vocabulary:', vocab)\n",
+        "print('Size of vocabulary:', len(vocab))"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": ["Find all tokens and their frequencies."]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def get_tokens_and_frequencies(vocab):\n",
+        "    tokens = collections.defaultdict(int)\n",
+        "    for word, freq in vocab.items():\n",
+        "        for token in word.split():\n",
+        "            tokens[token] += freq\n",
+        "    return tokens"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "tokens = get_tokens_and_frequencies(vocab)\n",
+        "print('Tokens:', tokens)\n",
+        "print('Number of tokens:', len(tokens))"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": ["Find pairs of adjacent tokens."]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def get_pairs_and_counts(vocab):\n",
+        "    pairs = collections.defaultdict(int)\n",
+        "    for word, freq in vocab.items():\n",
+        "        symbols = word.split()\n",
+        "        for i in range(len(symbols)-1):\n",
+        "            pairs[(symbols[i], symbols[i+1])] += freq\n",
+        "    return pairs"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "pairs = get_pairs_and_counts(vocab)\n",
+        "print('Pairs:', pairs)\n",
+        "print('Most frequent pair:', max(pairs, key=pairs.get))"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": ["Merge the most frequent pair."]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def merge_pair_in_vocabulary(pair, vocab_in):\n",
+        "    vocab_out = {}\n",
+        "    bigram = re.escape(' '.join(pair))\n",
+        "    p = re.compile(r'(?<!\\S)' + bigram + r'(?!\\S)')\n",
+        "    for word in vocab_in:\n",
+        "        updated = p.sub(''.join(pair), word)\n",
+        "        vocab_out[updated] = vocab_in[word]\n",
+        "    return vocab_out"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": ["## ✅ Completed full tokenize() function (SOLVED)"]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def tokenize(text, num_merges):\n",
+        "    vocab = initialize_vocabulary(text)\n",
+        "\n",
+        "    for i in range(num_merges):\n",
+        "        tokens = get_tokens_and_frequencies(vocab)\n",
+        "        pairs = get_pairs_and_counts(vocab)\n",
+        "\n",
+        "        if not pairs:\n",
+        "            break\n",
+        "\n",
+        "        most_frequent_pair = max(pairs, key=pairs.get)\n",
+        "        print(f\"Most frequent pair: {most_frequent_pair}\")\n",
+        "\n",
+        "        vocab = merge_pair_in_vocabulary(most_frequent_pair, vocab)\n",
+        "\n",
+        "    tokens = get_tokens_and_frequencies(vocab)\n",
+        "    return tokens, vocab"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "tokens, vocab = tokenize(text, num_merges=22)\n",
+        "print('\\nFinal Tokens:', tokens)\n",
+        "print('Final token count:', len(tokens))\n",
+        "print('\\nFinal Vocabulary:', vocab)\n",
+        "print('Final vocab size:', len(vocab))"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# **Woodchuck Example — Prediction + Execution (SOLVED)**"
+      ]
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Predictions:**\n",
+        "- Initial tokens: 14 unique characters + </w>\n",
+        "- Final tokens after full merges: 8 (one per distinct word)"
+      ]
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "text2 = \"How much wood could a woodchuck chuck if a woodchuck could chuck wood\"\n",
+        "tokens2, vocab2 = tokenize(text2, num_merges=200)\n",
+        "print('\\nWOODCHUCK FINAL TOKENS:', tokens2)\n",
+        "print('Number of final tokens:', len(tokens2))\n",
+        "print('\\nFinal vocab:', vocab2)"
+      ],
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
