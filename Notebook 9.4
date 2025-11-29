@@ -1,0 +1,250 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/udlbook/udlbook/blob/main/Notebooks/Chap09/9_5_Augmentation.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# **Notebook 9.5: Augmentation**\n",
+        "This notebook investigates data augmentation for the MNIST-1D model.\n"
+      ],
+      "metadata": {}
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "!pip install git+https://github.com/greydanus/mnist1d"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import torch, torch.nn as nn\n",
+        "from torch.utils.data import TensorDataset, DataLoader\n",
+        "from torch.optim.lr_scheduler import StepLR\n",
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "import mnist1d\n",
+        "import random"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "args = mnist1d.data.get_dataset_args()\n",
+        "data = mnist1d.data.get_dataset(args, path='./mnist1d_data.pkl', download=False, regenerate=False)\n",
+        "\n",
+        "print(\"Examples in training set:\", len(data['y']))\n",
+        "print(\"Examples in test set:\", len(data['y_test']))\n",
+        "print(\"Length of each example:\", data['x'].shape[-1])"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "D_i = 40\n",
+        "D_k = 200\n",
+        "D_o = 10\n",
+        "\n",
+        "model = nn.Sequential(\n",
+        "  nn.Linear(D_i, D_k), nn.ReLU(),\n",
+        "  nn.Linear(D_k, D_k), nn.ReLU(),\n",
+        "  nn.Linear(D_k, D_o)\n",
+        ")\n",
+        "\n",
+        "def weights_init(layer_in):\n",
+        "    if isinstance(layer_in, nn.Linear):\n",
+        "        nn.init.kaiming_uniform_(layer_in.weight)\n",
+        "        layer_in.bias.data.fill_(0.0)"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "loss_function = torch.nn.CrossEntropyLoss()\n",
+        "optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)\n",
+        "scheduler = StepLR(optimizer, step_size=10, gamma=0.5)\n",
+        "\n",
+        "x_train = torch.tensor(data['x'].astype('float32'))\n",
+        "y_train = torch.tensor(data['y'].astype('long'))\n",
+        "x_test  = torch.tensor(data['x_test'].astype('float32'))\n",
+        "y_test  = torch.tensor(data['y_test'].astype('long'))\n",
+        "\n",
+        "data_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=100, shuffle=True)\n",
+        "\n",
+        "model.apply(weights_init)\n",
+        "\n",
+        "n_epoch = 50\n",
+        "errors_train = np.zeros(n_epoch)\n",
+        "errors_test  = np.zeros(n_epoch)\n",
+        "\n",
+        "for epoch in range(n_epoch):\n",
+        "    for batch in data_loader:\n",
+        "        x_batch, y_batch = batch\n",
+        "        optimizer.zero_grad()\n",
+        "        pred = model(x_batch)\n",
+        "        loss = loss_function(pred, y_batch)\n",
+        "        loss.backward()\n",
+        "        optimizer.step()\n",
+        "\n",
+        "    pred_train = model(x_train)\n",
+        "    pred_test  = model(x_test)\n",
+        "    errors_train[epoch] = 100 - 100*(pred_train.argmax(1)==y_train).float().mean()\n",
+        "    errors_test[epoch]  = 100 - 100*(pred_test.argmax(1)==y_test).float().mean()\n",
+        "\n",
+        "    print(f\"Epoch {epoch:3d} | train error {errors_train[epoch]:5.2f} | test error {errors_test[epoch]:5.2f}\")"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.plot(errors_train, 'r', label='train')\n",
+        "plt.plot(errors_test, 'b', label='test')\n",
+        "plt.legend(); plt.xlabel(\"Epoch\"); plt.ylabel(\"Error %\"); plt.show()"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    /* ------------------------- AUGMENTATION SOLVED ------------------------- */
+
+    {
+      "cell_type": "code",
+      "source": [
+        "def augment(input_vector):\n",
+        "    # 1. Random circular shift\n",
+        "    shift = np.random.randint(0, len(input_vector))\n",
+        "    data_out = np.roll(input_vector, shift)\n",
+        "\n",
+        "    # 2. Random scale in [0.8, 1.2]\n",
+        "    scale = np.random.uniform(0.8, 1.2)\n",
+        "    data_out = data_out * scale\n",
+        "\n",
+        "    return data_out"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "n_data_orig = data['x'].shape[0]\n",
+        "n_data_augment = n_data_orig + 4000\n",
+        "\n",
+        "augmented_x = np.zeros((n_data_augment, D_i))\n",
+        "augmented_y = np.zeros(n_data_augment)\n",
+        "\n",
+        "augmented_x[:n_data_orig] = data['x']\n",
+        "augmented_y[:n_data_orig] = data['y']\n",
+        "\n",
+        "for i in range(n_data_orig, n_data_augment):\n",
+        "    idx = random.randint(0, n_data_orig-1)\n",
+        "    augmented_x[i] = augment(data['x'][idx])\n",
+        "    augmented_y[i] = data['y'][idx]"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "loss_function = torch.nn.CrossEntropyLoss()\n",
+        "optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)\n",
+        "scheduler = StepLR(optimizer, step_size=10, gamma=0.5)\n",
+        "\n",
+        "x_train_aug = torch.tensor(augmented_x.astype('float32'))\n",
+        "y_train_aug = torch.tensor(augmented_y.astype('long'))\n",
+        "\n",
+        "data_loader = DataLoader(TensorDataset(x_train_aug, y_train_aug), batch_size=100, shuffle=True)\n",
+        "\n",
+        "model.apply(weights_init)\n",
+        "\n",
+        "n_epoch = 50\n",
+        "errors_train_aug = np.zeros(n_epoch)\n",
+        "errors_test_aug  = np.zeros(n_epoch)\n",
+        "\n",
+        "for epoch in range(n_epoch):\n",
+        "    for batch in data_loader:\n",
+        "        x_batch, y_batch = batch\n",
+        "        optimizer.zero_grad()\n",
+        "        pred = model(x_batch)\n",
+        "        loss = loss_function(pred, y_batch)\n",
+        "        loss.backward()\n",
+        "        optimizer.step()\n",
+        "\n",
+        "    pred_train = model(x_train_aug)\n",
+        "    pred_test  = model(x_test)\n",
+        "    errors_train_aug[epoch] = 100 - 100*(pred_train.argmax(1)==y_train_aug).float().mean()\n",
+        "    errors_test_aug[epoch]  = 100 - 100*(pred_test.argmax(1)==y_test).float().mean()\n",
+        "\n",
+        "    print(f\"Epoch {epoch:3d} | aug train error {errors_train_aug[epoch]:5.2f} | aug test error {errors_test_aug[epoch]:5.2f}\")"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.plot(errors_test, 'b', label='original test')\n",
+        "plt.plot(errors_test_aug, 'g', label='augmented test')\n",
+        "plt.legend(); plt.xlabel(\"Epoch\"); plt.ylabel(\"Error %\"); plt.show()"
+      ],
+      "metadata": {},
+      "execution_count": null,
+      "outputs": []
+    },
+
+    {
+      "cell_type": "markdown",
+      "source": [
+        "✔ **Augmentation improves performance** due to shift invariance + scaling diversity."
+      ],
+      "metadata": {}
+    }
+  ]
+}
